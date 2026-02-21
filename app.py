@@ -22,51 +22,35 @@ DEMO_KEYS = set(
     if k.strip()
 )
 
-# ✅ RapidAPI-origin verification secret (copy from RapidAPI -> Gateway tab)
+# RapidAPI gateway secret (set this on Render Environment)
 RAPIDAPI_PROXY_SECRET = os.environ.get("RAPIDAPI_PROXY_SECRET", "").strip()
 
 app = FastAPI(title="Basketball Injuries API", version="2.2.0")
 
 
-# ---------------- Root ----------------
-@app.get("/")
-def root():
-    return {
-        "message": "Basketball Injuries API is live",
-        "docs": "/docs",
-        "health": "/v1/health",
-        "browserTestExample": "/v1/injuries?api_key=free-demo-key" if ALLOW_QUERY_KEY else "disabled",
-        "note": "RapidAPI requests are validated via X-RapidAPI-Proxy-Secret.",
-    }
-
-
 # ---------------- Auth ----------------
 def is_from_rapidapi(request: Request) -> bool:
     """
-    RapidAPI forwards requests to your origin with X-RapidAPI-Proxy-Secret.
-    Verify it matches the secret shown in RapidAPI Studio -> Gateway tab.
+    When called through RapidAPI, RapidAPI forwards requests to your origin and adds:
+      - X-RapidAPI-Proxy-Secret: <your unique secret>
+    Use it to verify calls are coming from RapidAPI infrastructure.
     """
     if not RAPIDAPI_PROXY_SECRET:
         return False
-    incoming = (request.headers.get("X-RapidAPI-Proxy-Secret") or "").strip()
+
+    incoming = request.headers.get("X-RapidAPI-Proxy-Secret", "").strip()
     return bool(incoming) and incoming == RAPIDAPI_PROXY_SECRET
 
 
 def get_client_key(request: Request) -> Optional[str]:
-    # Preferred: your own header (useful for direct testing / future custom auth)
+    # Your own header (manual clients)
     k = request.headers.get("X-API-Key")
-    if k:
-        return k.strip()
-
-    # NOTE: RapidAPI Playground shows X-RapidAPI-Key in the UI,
-    # but it is NOT guaranteed to be forwarded to your origin.
-    k = request.headers.get("X-RapidAPI-Key")
     if k:
         return k.strip()
 
     # Browser testing: query parameter (only if enabled)
     if ALLOW_QUERY_KEY:
-        k = request.query_params.get("api_key") or request.query_params.get("key")
+        k = request.query_params.get("api_key")
         if k:
             return k.strip()
 
@@ -74,12 +58,11 @@ def get_client_key(request: Request) -> Optional[str]:
 
 
 def require_key(request: Request) -> str:
-    # ✅ If the request came through RapidAPI proxy, accept it.
-    # Billing/auth is handled by RapidAPI subscription.
+    # ✅ If it’s coming from RapidAPI gateway, accept the request
     if is_from_rapidapi(request):
         return "rapidapi"
 
-    # Otherwise require your normal key logic (browser/local/direct usage)
+    # Otherwise require your key (manual/browsers)
     api_key = get_client_key(request)
     if not api_key:
         raise HTTPException(
@@ -87,7 +70,6 @@ def require_key(request: Request) -> str:
             detail="Missing API key. Send X-API-Key header, or use ?api_key=... if enabled.",
         )
 
-    # Accept demo keys for browser testing
     if api_key in DEMO_KEYS:
         return api_key
 
@@ -120,16 +102,25 @@ def get_injuries_cached(ttl: int = CACHE_TTL_SECONDS) -> Dict[str, Any]:
 
 
 # ---------------- Routes ----------------
+@app.get("/")
+def root():
+    return {
+        "message": "Basketball Injuries API is live",
+        "docs": "/docs",
+        "health": "/v1/health",
+        "example": "/v1/injuries?api_key=free-demo-key",
+        "note": "RapidAPI requests are authorized via X-RapidAPI-Proxy-Secret",
+    }
+
+
 @app.get("/v1/health")
 def health(request: Request):
-    # health is usually public, but if you want to restrict it, uncomment:
-    # require_key(request)
-
     return {
         "status": "ok",
         "cacheTtlSeconds": CACHE_TTL_SECONDS,
         "allowQueryKey": ALLOW_QUERY_KEY,
         "rapidapiProxySecretConfigured": bool(RAPIDAPI_PROXY_SECRET),
+        "isRapidAPIRequest": is_from_rapidapi(request),
     }
 
 
