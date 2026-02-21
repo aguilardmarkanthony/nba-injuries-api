@@ -20,6 +20,14 @@ DEMO_KEYS = set(k.strip() for k in os.environ.get("DEMO_KEYS", "free-demo-key,pr
 
 app = FastAPI(title="Basketball Injuries API", version="2.1.0")
 
+@app.get("/")
+def root():
+    return {
+        "message": "Basketball Injuries API is live",
+        "docs": "/docs",
+        "health": "/v1/health",
+        "example": "/v1/injuries?api_key=free-demo-key",
+    }
 
 # ---------------- Auth ----------------
 def get_client_key(request: Request) -> Optional[str]:
@@ -35,11 +43,11 @@ def get_client_key(request: Request) -> Optional[str]:
 
     # Browser testing: query parameter (only if enabled)
     if ALLOW_QUERY_KEY:
-        k = request.query_params.get("api_key")
+        k = request.query_params.get("api_key") or request.query_params.get("key")
         if k:
             return k.strip()
 
-    return None
+    return None 
 
 
 def require_key(request: Request) -> str:
@@ -89,6 +97,15 @@ def get_injuries_cached(ttl: int = CACHE_TTL_SECONDS) -> Dict[str, Any]:
 
 
 # ---------------- Routes ----------------
+@app.get("/")
+def root():
+    return {
+        "message": "Basketball Injuries API is live",
+        "docs": "/docs",
+        "health": "/v1/health",
+        "browserTestExample": "/v1/injuries?api_key=free-demo-key" if ALLOW_QUERY_KEY else "disabled",
+    }
+
 @app.get("/v1/health")
 def health():
     return {"status": "ok", "cacheTtlSeconds": CACHE_TTL_SECONDS, "allowQueryKey": ALLOW_QUERY_KEY}
