@@ -12,6 +12,7 @@ Current NBA injury snapshots sourced from ESPN, with team filters, a complete te
 | Consumer reference | [docs/rapidapi.md](docs/rapidapi.md) |
 | Consumer specification | [openapi.json](openapi.json) |
 | Provider import specification | [rapidapi-import.json](rapidapi-import.json) |
+| Latest production verification | [October 12, 2026 release](docs/RELEASE-2026-10-12.md) |
 
 ## Quick start
 

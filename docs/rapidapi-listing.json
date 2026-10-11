@@ -1,0 +1,12 @@
+{
+  "name": "NBA Injuries API",
+  "version": "v1",
+  "shortDescription": "NBA injury reports from ESPN with team filters, player search, player IDs, and clear cache freshness metadata.",
+  "longDescription": "Retrieve current NBA injury snapshots sourced from ESPN. Filter by canonical or ESPN team abbreviations, discover all 30 supported teams, and search injured players by name. Responses include source status, estimated return dates, ESPN player IDs when available, snapshot timestamps, and cache age/staleness indicators. Snapshots refresh approximately every 120 seconds while running; source publication delays and idle startup latency apply. See the documentation for error handling, aliases, and compatibility details.",
+  "website": "https://github.com/aguilardmarkanthony/nba-injuries-api",
+  "baseUrl": "https://nba-injuries-api-1.onrender.com",
+  "healthCheckPath": "/v1/health",
+  "documentationFile": "docs/rapidapi.md",
+  "providerSpecificationFile": "rapidapi-import.json",
+  "lastVerifiedDate": "2026-10-12"
+}
