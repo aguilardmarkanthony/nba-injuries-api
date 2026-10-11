@@ -1,0 +1,769 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "NBA Injuries API",
+    "description": "Current ESPN-sourced NBA injury snapshots, team lookup, and player search. Responses include cache age and stale-data indicators. Return dates are source estimates.",
+    "version": "v1"
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Health Check",
+        "description": "Liveness only: a healthy process does not guarantee fresh upstream data.",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/teams": {
+      "get": {
+        "tags": [
+          "Teams"
+        ],
+        "summary": "List Teams",
+        "description": "List all 30 supported teams and canonical/source abbreviation mappings. No source fetch is needed.",
+        "operationId": "listTeams",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team or search value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_TEAM",
+                    "message": "Unknown NBA team abbreviation."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Authentication is missing or invalid."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request parameter validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Invalid request parameters."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No sufficiently recent source snapshot is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UPSTREAM_UNAVAILABLE",
+                    "message": "Injury data is temporarily unavailable. Please retry later."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/injuries": {
+      "get": {
+        "tags": [
+          "Injuries"
+        ],
+        "summary": "Get Injuries",
+        "operationId": "getInjuries",
+        "parameters": [
+          {
+            "name": "team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Optional NBA abbreviation, case-insensitive. Canonical and source aliases both work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Omit for all teams.",
+              "title": "Team",
+              "type": "string",
+              "maxLength": 16,
+              "nullable": true
+            },
+            "description": "Optional NBA abbreviation, case-insensitive. Canonical and source aliases both work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Omit for all teams.",
+            "example": "GSW"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/AllInjuries"
+                    },
+                    {
+                      "$ref": "#/components/schemas/TeamInjuries"
+                    }
+                  ],
+                  "title": "Response Getinjuries"
+                },
+                "examples": {
+                  "allTeams": {
+                    "summary": "Illustrative all-team snapshot",
+                    "value": {
+                      "updatedAt": 1791746877,
+                      "source": "ESPN",
+                      "cache": {
+                        "ageSeconds": 12,
+                        "ttlSeconds": 120,
+                        "maxAgeSeconds": 900,
+                        "stale": false
+                      },
+                      "teams": {
+                        "GS": [
+                          {
+                            "player": "Example Player",
+                            "playerId": "123",
+                            "status": "OUT",
+                            "reason": "Ankle",
+                            "returnDate": null
+                          }
+                        ]
+                      },
+                      "teamCount": 1,
+                      "playerEntryCount": 1
+                    }
+                  },
+                  "singleTeam": {
+                    "summary": "Illustrative canonical alias filter",
+                    "value": {
+                      "updatedAt": 1791746877,
+                      "source": "ESPN",
+                      "cache": {
+                        "ageSeconds": 12,
+                        "ttlSeconds": 120,
+                        "maxAgeSeconds": 900,
+                        "stale": false
+                      },
+                      "team": "GSW",
+                      "canonicalTeam": "GSW",
+                      "count": 1,
+                      "injuries": [
+                        {
+                          "player": "Example Player",
+                          "playerId": "123",
+                          "status": "OUT",
+                          "reason": "Ankle",
+                          "returnDate": null
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team or search value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_TEAM",
+                    "message": "Unknown NBA team abbreviation."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Authentication is missing or invalid."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request parameter validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Invalid request parameters."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No sufficiently recent source snapshot is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UPSTREAM_UNAVAILABLE",
+                    "message": "Injury data is temporarily unavailable. Please retry later."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/player/search": {
+      "get": {
+        "tags": [
+          "Players"
+        ],
+        "summary": "Search Injured Players",
+        "operationId": "searchInjuredPlayers",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 100,
+              "description": "Case-insensitive substring of a player's name. Must contain at least two characters after trimming. Searches the current injury snapshot, not all NBA players.",
+              "title": "Name"
+            },
+            "description": "Case-insensitive substring of a player's name. Must contain at least two characters after trimming. Searches the current injury snapshot, not all NBA players.",
+            "example": "James"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid team or search value",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "INVALID_SEARCH",
+                    "message": "Provide at least two characters after trimming whitespace."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Authentication is missing or invalid."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request parameter validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Invalid request parameters."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No sufficiently recent source snapshot is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UPSTREAM_UNAVAILABLE",
+                    "message": "Injury data is temporarily unavailable. Please retry later."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AllInjuries": {
+        "properties": {
+          "updatedAt": {
+            "type": "integer",
+            "title": "Updatedat",
+            "description": "Unix timestamp in seconds when this snapshot was successfully fetched and parsed; not the source's injury update time."
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "cache": {
+            "$ref": "#/components/schemas/CacheMetadata"
+          },
+          "teams": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/Injury"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Teams"
+          },
+          "teamCount": {
+            "type": "integer",
+            "title": "Teamcount",
+            "description": "Number of teams represented by injury entries in this snapshot; may be less than 30."
+          },
+          "playerEntryCount": {
+            "type": "integer",
+            "title": "Playerentrycount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updatedAt",
+          "source",
+          "cache",
+          "teams",
+          "teamCount",
+          "playerEntryCount"
+        ],
+        "title": "AllInjuries"
+      },
+      "CacheMetadata": {
+        "properties": {
+          "ageSeconds": {
+            "type": "integer",
+            "title": "Ageseconds"
+          },
+          "ttlSeconds": {
+            "type": "integer",
+            "title": "Ttlseconds"
+          },
+          "maxAgeSeconds": {
+            "type": "integer",
+            "title": "Maxageseconds"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ageSeconds",
+          "ttlSeconds",
+          "maxAgeSeconds",
+          "stale"
+        ],
+        "title": "CacheMetadata"
+      },
+      "ErrorDetails": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "validTeams": {
+            "title": "Validteams",
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true
+          },
+          "details": {
+            "title": "Details",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetails"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetails"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "cacheTtlSeconds": {
+            "type": "integer",
+            "title": "Cachettlseconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "cacheTtlSeconds"
+        ],
+        "title": "HealthResponse"
+      },
+      "Injury": {
+        "properties": {
+          "player": {
+            "type": "string",
+            "title": "Player"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Source status, commonly GTD (game-time decision), OUT, or OFS (out for season)."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "returnDate": {
+            "title": "Returndate",
+            "description": "Source-provided estimated return date; null when unavailable.",
+            "type": "string",
+            "nullable": true
+          },
+          "playerId": {
+            "title": "Playerid",
+            "description": "ESPN athlete identifier, when supplied by the source.",
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "status",
+          "reason",
+          "returnDate"
+        ],
+        "title": "Injury"
+      },
+      "SearchInjury": {
+        "properties": {
+          "player": {
+            "type": "string",
+            "title": "Player"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Source status, commonly GTD (game-time decision), OUT, or OFS (out for season)."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "returnDate": {
+            "title": "Returndate",
+            "description": "Source-provided estimated return date; null when unavailable.",
+            "type": "string",
+            "nullable": true
+          },
+          "playerId": {
+            "title": "Playerid",
+            "description": "ESPN athlete identifier, when supplied by the source.",
+            "type": "string",
+            "nullable": true
+          },
+          "team": {
+            "type": "string",
+            "title": "Team"
+          },
+          "canonicalTeam": {
+            "type": "string",
+            "title": "Canonicalteam"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player",
+          "status",
+          "reason",
+          "returnDate",
+          "team",
+          "canonicalTeam"
+        ],
+        "title": "SearchInjury"
+      },
+      "SearchResponse": {
+        "properties": {
+          "updatedAt": {
+            "type": "integer",
+            "title": "Updatedat",
+            "description": "Unix timestamp in seconds when this snapshot was successfully fetched and parsed; not the source's injury update time."
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "cache": {
+            "$ref": "#/components/schemas/CacheMetadata"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchInjury"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updatedAt",
+          "source",
+          "cache",
+          "query",
+          "count",
+          "results"
+        ],
+        "title": "SearchResponse"
+      },
+      "TeamDetails": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sourceCode": {
+            "type": "string",
+            "title": "Sourcecode"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "sourceCode",
+          "aliases"
+        ],
+        "title": "TeamDetails"
+      },
+      "TeamInjuries": {
+        "properties": {
+          "updatedAt": {
+            "type": "integer",
+            "title": "Updatedat",
+            "description": "Unix timestamp in seconds when this snapshot was successfully fetched and parsed; not the source's injury update time."
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "cache": {
+            "$ref": "#/components/schemas/CacheMetadata"
+          },
+          "team": {
+            "type": "string",
+            "title": "Team",
+            "description": "The requested abbreviation, trimmed and uppercased, retained for v1 compatibility."
+          },
+          "canonicalTeam": {
+            "type": "string",
+            "title": "Canonicalteam"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "injuries": {
+            "items": {
+              "$ref": "#/components/schemas/Injury"
+            },
+            "type": "array",
+            "title": "Injuries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updatedAt",
+          "source",
+          "cache",
+          "team",
+          "canonicalTeam",
+          "count",
+          "injuries"
+        ],
+        "title": "TeamInjuries"
+      },
+      "TeamsResponse": {
+        "properties": {
+          "teams": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Teams",
+            "description": "All 30 supported v1 source abbreviations, including teams without injury entries."
+          },
+          "canonicalTeams": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Canonicalteams"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/TeamDetails"
+            },
+            "type": "array",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "teams",
+          "canonicalTeams",
+          "details"
+        ],
+        "title": "TeamsResponse"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://nba-injuries-api-1.onrender.com"
+    }
+  ]
+}
