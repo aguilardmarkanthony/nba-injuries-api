@@ -2,14 +2,14 @@
 
 ## Current: portfolio review, October 12, 2026
 
-The owner subsequently requested competitive pricing across the portfolio and explicitly allowed larger free trials where justified. This supersedes the earlier five-request setting below.
+The owner clarified that free access should let customers sample the API rather than support ongoing daily use. The temporary 100-call evaluation is reduced to five monthly requests. Paid pricing from the competitive review is retained.
 
 | Public plan | USD/month | Requests/month | Rate limit |
 | --- | ---: | ---: | --- |
-| BASIC | $0 | 100, hard limit | 1/second |
+| BASIC | $0 | 5, hard limit | 1/second |
 | PRO | $5 | 500,000, hard limit | 3,600/hour |
 
-The recurring monthly evaluation allowance supports trying all six endpoints, filters and freshness behavior. PRO changes from $9.99 to $5 with its paid quota unchanged. The directly comparable [NBA Injuries Reports](https://rapidapi.com/nichustm/api/nba-injuries-reports/pricing) offers $5/500,000 and one free request. [BALLDONTLIE](https://docs.balldontlie.io/#account-tiers) includes injuries in its broader $9.99 All-Star package, not its free tier. These observed prices do not establish data or reliability parity.
+Five calls support a brief sample of responses and filters, not a full test of every endpoint or daily monitoring. They renew monthly without automatic paid conversion. PRO remains $5 after the earlier reduction from $9.99, with its paid quota unchanged. The directly comparable [NBA Injuries Reports](https://rapidapi.com/nichustm/api/nba-injuries-reports/pricing) offers $5/500,000 and one free request. [BALLDONTLIE](https://docs.balldontlie.io/#account-tiers) includes injuries in its broader $9.99 All-Star package, not its free tier. These observed prices do not establish data or reliability parity.
 
 Existing subscribers keep their previous plans until they switch; no account is forcibly migrated. All gateway calls can consume quota. Bandwidth remains 10,240 MB/month included, then $0.001/MB. A $5 subscription leaves $3.75 after RapidAPI's 25% marketplace fee, before hosting, support, payout costs, refunds and tax. Profitability remains unproven. [Marketplace fees](https://docs.rapidapi.com/docs/payouts-and-finance)
 
