@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "NBA Injuries API",
-    "description": "Current ESPN-sourced NBA injury snapshots, team lookup, and player search. Responses include cache age and stale-data indicators. Return dates are source estimates.",
-    "version": "2.3.0"
+    "description": "Current ESPN-sourced NBA injury snapshots with team/status filters, player lookup, and freshness checks. Responses include cache age and stale-data indicators. Return dates are source estimates.",
+    "version": "2.4.0"
   },
   "paths": {
     "/v1/health": {
@@ -21,6 +21,66 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/freshness": {
+      "get": {
+        "tags": [
+          "Service"
+        ],
+        "summary": "Check Snapshot Freshness",
+        "description": "Observe background refresh health without fetching. HTTP 503 uses the same diagnostic schema as HTTP 200.",
+        "operationId": "checkFreshness",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessResponse"
+                },
+                "example": {
+                  "status": "fresh",
+                  "version": "2.4.0",
+                  "source": "ESPN",
+                  "updatedAt": 1791746877,
+                  "cache": {
+                    "ageSeconds": 12,
+                    "ttlSeconds": 120,
+                    "maxAgeSeconds": 900,
+                    "stale": false
+                  },
+                  "alertAfterSeconds": 300,
+                  "consecutiveRefreshFailures": 0
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Snapshot missing, too old, or repeatedly failing to refresh",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreshnessResponse"
+                },
+                "example": {
+                  "status": "stale",
+                  "version": "2.4.0",
+                  "source": "ESPN",
+                  "updatedAt": 1791746877,
+                  "cache": {
+                    "ageSeconds": 300,
+                    "ttlSeconds": 120,
+                    "maxAgeSeconds": 900,
+                    "stale": true
+                  },
+                  "alertAfterSeconds": 300,
+                  "consecutiveRefreshFailures": 0
                 }
               }
             }
@@ -48,7 +108,7 @@
             }
           },
           "400": {
-            "description": "Invalid team or search value",
+            "description": "Invalid team, status, filter combination, or search value",
             "content": {
               "application/json": {
                 "schema": {
@@ -127,14 +187,40 @@
             "in": "query",
             "required": false,
             "schema": {
-              "description": "Optional NBA abbreviation, case-insensitive. Canonical and source aliases both work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Omit for all teams.",
+              "description": "Optional single NBA abbreviation, case-insensitive. Canonical and source aliases work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Cannot combine with teams.",
               "title": "Team",
               "type": "string",
               "maxLength": 16,
               "nullable": true
             },
-            "description": "Optional NBA abbreviation, case-insensitive. Canonical and source aliases both work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Omit for all teams.",
+            "description": "Optional single NBA abbreviation, case-insensitive. Canonical and source aliases work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Cannot combine with teams.",
             "example": "GSW"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Optional status code or readable alias, case-insensitive: OUT, GTD, OFS, QUESTIONABLE, DOUBTFUL, PROBABLE, DAY_TO_DAY, UNKNOWN. GTD and QUESTIONABLE are distinct. Omit for every status.",
+              "title": "Status",
+              "type": "string",
+              "maxLength": 64,
+              "nullable": true
+            },
+            "description": "Optional status code or readable alias, case-insensitive: OUT, GTD, OFS, QUESTIONABLE, DOUBTFUL, PROBABLE, DAY_TO_DAY, UNKNOWN. GTD and QUESTIONABLE are distinct. Omit for every status."
+          },
+          {
+            "name": "teams",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Optional comma-separated list of up to 30 team abbreviations, e.g. GSW,NOP. Aliases are deduplicated. Returns the all-team envelope with matching source keys. Cannot combine with team.",
+              "title": "Teams",
+              "type": "string",
+              "maxLength": 256,
+              "nullable": true
+            },
+            "description": "Optional comma-separated list of up to 30 team abbreviations, e.g. GSW,NOP. Aliases are deduplicated. Returns the all-team envelope with matching source keys. Cannot combine with team."
           }
         ],
         "responses": {
@@ -171,6 +257,7 @@
                             "player": "Example Player",
                             "playerId": "123",
                             "status": "OUT",
+                            "statusCode": "OUT",
                             "reason": "Ankle",
                             "returnDate": null
                           }
@@ -199,6 +286,7 @@
                           "player": "Example Player",
                           "playerId": "123",
                           "status": "OUT",
+                          "statusCode": "OUT",
                           "reason": "Ankle",
                           "returnDate": null
                         }
@@ -210,7 +298,7 @@
             }
           },
           "400": {
-            "description": "Invalid team or search value",
+            "description": "Invalid team, status, filter combination, or search value",
             "content": {
               "application/json": {
                 "schema": {
@@ -311,7 +399,7 @@
             }
           },
           "400": {
-            "description": "Invalid team or search value",
+            "description": "Invalid team, status, filter combination, or search value",
             "content": {
               "application/json": {
                 "schema": {
@@ -322,6 +410,93 @@
                     "code": "INVALID_SEARCH",
                     "message": "Provide at least two characters after trimming whitespace."
                   }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UNAUTHORIZED",
+                    "message": "Authentication is missing or invalid."
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request parameter validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Invalid request parameters."
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No sufficiently recent source snapshot is available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "UPSTREAM_UNAVAILABLE",
+                    "message": "Injury data is temporarily unavailable. Please retry later."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/player/{player_id}": {
+      "get": {
+        "tags": [
+          "Players"
+        ],
+        "summary": "Find Injuries by Player ID",
+        "description": "An empty 200 means no matching injury entry, not that the player exists or is healthy.",
+        "operationId": "getPlayerInjuries",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12,
+              "pattern": "^[1-9][0-9]*$",
+              "description": "Positive ESPN athlete ID, 1-12 ASCII digits with no leading zero. Searches current injury entries only.",
+              "title": "Player Id"
+            },
+            "description": "Positive ESPN athlete ID, 1-12 ASCII digits with no leading zero. Searches current injury entries only.",
+            "example": "1966"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerResponse"
                 }
               }
             }
@@ -407,7 +582,7 @@
           "teamCount": {
             "type": "integer",
             "title": "Teamcount",
-            "description": "Number of teams represented by injury entries in this snapshot; may be less than 30."
+            "description": "Number of teams represented by returned injury entries; reflects applied filters and may be less than 30."
           },
           "playerEntryCount": {
             "type": "integer",
@@ -471,6 +646,14 @@
             "type": "array",
             "nullable": true
           },
+          "validStatuses": {
+            "title": "Validstatuses",
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "nullable": true
+          },
           "details": {
             "title": "Details",
             "items": {
@@ -499,6 +682,61 @@
           "error"
         ],
         "title": "ErrorResponse"
+      },
+      "FreshnessResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "fresh",
+              "delayed",
+              "stale",
+              "degraded",
+              "unavailable"
+            ],
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "updatedAt": {
+            "title": "Updatedat",
+            "type": "integer",
+            "nullable": true
+          },
+          "cache": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CacheMetadata"
+              }
+            ],
+            "nullable": true
+          },
+          "alertAfterSeconds": {
+            "type": "integer",
+            "title": "Alertafterseconds"
+          },
+          "consecutiveRefreshFailures": {
+            "type": "integer",
+            "title": "Consecutiverefreshfailures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version",
+          "source",
+          "updatedAt",
+          "cache",
+          "alertAfterSeconds",
+          "consecutiveRefreshFailures"
+        ],
+        "title": "FreshnessResponse"
       },
       "HealthResponse": {
         "properties": {
@@ -549,6 +787,22 @@
             "description": "ESPN athlete identifier, when supplied by the source.",
             "type": "string",
             "nullable": true
+          },
+          "statusCode": {
+            "type": "string",
+            "enum": [
+              "OUT",
+              "GTD",
+              "OFS",
+              "QUESTIONABLE",
+              "DOUBTFUL",
+              "PROBABLE",
+              "DAY_TO_DAY",
+              "UNKNOWN"
+            ],
+            "title": "Statuscode",
+            "description": "Stable filter code derived from status; unrecognized source text maps to UNKNOWN.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -556,9 +810,51 @@
           "player",
           "status",
           "reason",
-          "returnDate"
+          "returnDate",
+          "statusCode"
         ],
         "title": "Injury"
+      },
+      "PlayerResponse": {
+        "properties": {
+          "updatedAt": {
+            "type": "integer",
+            "title": "Updatedat",
+            "description": "Unix timestamp in seconds when this snapshot was successfully fetched and parsed; not the source's injury update time."
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "cache": {
+            "$ref": "#/components/schemas/CacheMetadata"
+          },
+          "playerId": {
+            "type": "string",
+            "title": "Playerid"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchInjury"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "updatedAt",
+          "source",
+          "cache",
+          "playerId",
+          "count",
+          "results"
+        ],
+        "title": "PlayerResponse"
       },
       "SearchInjury": {
         "properties": {
@@ -594,6 +890,22 @@
           "canonicalTeam": {
             "type": "string",
             "title": "Canonicalteam"
+          },
+          "statusCode": {
+            "type": "string",
+            "enum": [
+              "OUT",
+              "GTD",
+              "OFS",
+              "QUESTIONABLE",
+              "DOUBTFUL",
+              "PROBABLE",
+              "DAY_TO_DAY",
+              "UNKNOWN"
+            ],
+            "title": "Statuscode",
+            "description": "Stable filter code derived from status; unrecognized source text maps to UNKNOWN.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -603,7 +915,8 @@
           "reason",
           "returnDate",
           "team",
-          "canonicalTeam"
+          "canonicalTeam",
+          "statusCode"
         ],
         "title": "SearchInjury"
       },

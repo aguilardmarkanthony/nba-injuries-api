@@ -32,6 +32,7 @@ class InjuryCache:
         self._payload = None
         self._loaded_at = 0.0
         self._retry_at = 0.0
+        self._consecutive_failures = 0
         self._stop = threading.Event()
         self._worker = None
 
@@ -59,11 +60,13 @@ class InjuryCache:
                 logger.warning("Injury source refresh failed (%s)", type(exc).__name__)
                 with self._state:
                     self._retry_at = self.clock() + self.retry_seconds
+                    self._consecutive_failures += 1
                 return
             with self._state:
                 self._payload = replacement
                 self._loaded_at = self.clock()
                 self._retry_at = 0.0
+                self._consecutive_failures = 0
         finally:
             self._refresh_lock.release()
 
@@ -76,12 +79,26 @@ class InjuryCache:
             raise CacheUnavailable("No sufficiently recent injury snapshot is available")
         # The lifespan worker refreshes expired entries. A bounded stale snapshot
         # stays immediately available while that refresh is in progress.
-        return payload, {
+        return payload, self._metadata(age)
+
+    def _metadata(self, age: float) -> dict:
+        return {
             "ageSeconds": int(age),
             "ttlSeconds": self.ttl,
             "maxAgeSeconds": self.max_age,
             "stale": age >= self.ttl,
         }
+
+    def inspect(self) -> dict:
+        """Observe even expired snapshots without fetching or masking a stalled worker."""
+        with self._state:
+            payload = self._payload
+            age = max(0.0, self.clock() - self._loaded_at)
+            return {
+                "updatedAt": payload["updatedAt"] if payload is not None else None,
+                "cache": self._metadata(age) if payload is not None else None,
+                "consecutiveRefreshFailures": self._consecutive_failures,
+            }
 
     def _run(self):
         while not self._stop.is_set():

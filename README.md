@@ -1,6 +1,6 @@
 # NBA Injuries API
 
-Current NBA injury snapshots sourced from ESPN, with team filters, a complete team directory, and player-name search. The public v1 contract preserves ESPN's historical team keys while accepting canonical NBA abbreviations in requests.
+Current NBA injury snapshots sourced from ESPN, with team/status filters, a complete team directory, player lookup, and freshness monitoring. The public v1 contract preserves ESPN's historical team keys while accepting canonical NBA abbreviations in requests.
 
 | Resource | Location |
 | --- | --- |
@@ -26,12 +26,18 @@ curl 'https://nba-injuries-api.p.rapidapi.com/v1/injuries?team=GSW' \
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/v1/injuries` | All injury entries, optionally filtered by `team` |
+| GET | `/v1/injuries` | Injury entries filtered by `team` or comma-separated `teams`, plus optional `status` |
 | GET | `/v1/teams` | All 30 teams, including canonical codes and aliases |
 | GET | `/v1/player/search?name=James` | Case-insensitive substring search within current injury entries |
 | GET | `/v1/health` | Process liveness and release version |
+| GET | `/v1/player/{player_id}` | Exact ESPN ID lookup within current injury entries |
+| GET | `/v1/freshness` | Background snapshot age and refresh-failure diagnostics |
 
 `/v1/ready` is an origin readiness probe. It returns 503 when no sufficiently recent snapshot is available; bounded stale data remains ready and is explicitly marked stale.
+
+For example, request `/v1/injuries?teams=GSW,NOP&status=OUT` or `/v1/player/1966`. Status codes include OUT, GTD, OFS, QUESTIONABLE, DOUBTFUL, PROBABLE, DAY_TO_DAY, and UNKNOWN. Original source status text is retained alongside `statusCode`. See [the complete API reference](docs/rapidapi.md) for filter aliases and empty-result semantics.
+
+Run the [Python integration example](examples/injury_watch.py) with `RAPIDAPI_KEY` set in your environment: `python examples/injury_watch.py --team GSW --status OUT`. It needs no third-party packages and makes one request per invocation.
 
 ## Local development
 
@@ -54,6 +60,7 @@ For local requests, send your explicitly configured key as `X-API-Key`. The appl
 | `DEMO_KEYS` | empty | Legacy compatibility setting for private direct keys; the two old public demo keys are always rejected |
 | `CACHE_TTL` | 120 | Snapshot refresh interval in seconds |
 | `MAX_CACHE_AGE` | 900 | Maximum snapshot age allowed during refresh/source failure; must be at least `CACHE_TTL` |
+| `FRESHNESS_ALERT_SECONDS` | 300 | Freshness probe fails at this snapshot age; default is clamped into the configured TTL/max-age interval; explicit values must be inside that interval |
 
 Query-string authentication is disabled. A client-supplied `X-RapidAPI-Key` alone does not authenticate direct origin requests. The backend validates RapidAPI's proxy secret using constant-time comparison.
 
@@ -83,5 +90,7 @@ python scripts/export_openapi.py
 Review the diff, commit all tested source/documentation/spec changes, and push to GitHub. After CI passes, merge to `main`, verify the Render deploy and authenticated API behavior, then update the existing RapidAPI v1 listing. Import `rapidapi-import.json` into the provider definition: **do not use the consumer `openapi.json` as the origin configuration**, because its server is the RapidAPI gateway.
 
 Set the Render health-check path to `/v1/health`. Monitor `/v1/ready` and freshness metadata separately from liveness. See [CHANGELOG.md](CHANGELOG.md) for compatibility changes and [docs/ROADMAP.md](docs/ROADMAP.md) for proposed enhancements.
+
+The `Production freshness` workflow checks `/v1/freshness` on a 30-minute schedule and can be run manually after deployment. It fails when the snapshot is missing, exceeds its age threshold, or has three consecutive refresh failures. GitHub alert delivery follows the account's Actions notification settings. See [monitoring operations](docs/MONITORING.md) for retry behavior, notification setup, and schedule limitations.
 
 The previously tracked `payload.json` billing sample is excluded from the current repository tree. Historical commits may still contain it; no history rewrite was performed.
