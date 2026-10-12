@@ -21,6 +21,10 @@
 
 The live source review returned 133 entries: 114 GTD, 18 OUT, and 1 OFS. All observed statuses mapped to a documented code. Counts vary over time; fixtures and examples do not promise these production counts.
 
+## Publication review
+
+Read-back verification caught the RapidAPI editor truncating the 10,040-character documentation and breaking its final GitHub link. Removing the repeated previous-release paragraph reduced the document to 9,654 characters. After republishing and reopening the editor, the saved text matched the repository exactly; the public page showed the complete link. A size guideline and saved-text comparison are now recorded in `AGENTS.md` for later updates. See the [production verification report](RELEASE-2.4.0-2026-10-12.md) for all live checks.
+
 ## Remaining proposals
 
 Paid compute, durable injury history, webhooks, pricing changes, and additional client libraries remain separate proposals. The implementation does not claim source publication-time freshness or historical coverage.

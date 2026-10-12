@@ -143,8 +143,4 @@ The example uses Python's standard library, makes one gateway request, prints JS
 
 Added optional status and multi-team filters, normalized `statusCode`, exact player-ID lookup, a separate freshness endpoint, production monitoring, and a runnable Python integration. Existing unfiltered and single-team response envelopes and historical team keys remain supported.
 
-### Previous release 2.3.0
-
-Fixed canonical team aliases and invalid-team responses; added team-directory and player-search documentation, player IDs, cache freshness metadata, source-failure handling, and secure origin defaults. Existing v1 success fields and all-team source keys are preserved. Query-string API keys and public demo credentials are no longer accepted at the origin.
-
 Source, changelog, and specifications: https://github.com/aguilardmarkanthony/nba-injuries-api
