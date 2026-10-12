@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.4.0 — 2026-10-12
+
+- Add optional status and comma-separated multi-team filters, with alias deduplication, validation, matching-result counts, and preserved v1 response envelopes.
+- Add a normalized `statusCode` without changing source status text; keep GTD and QUESTIONABLE distinct and map unfamiliar source values to UNKNOWN.
+- Add exact ESPN player-ID lookup for current injury entries. An empty 200 response does not imply player health or roster membership.
+- Add `/v1/freshness`, which observes the background cache without refreshing it, and counts consecutive source failures. Missing, stale, or repeatedly failing snapshots return diagnostic 503 responses.
+- Add a production GitHub Actions freshness monitor with bounded retries and a 30-minute schedule; notification delivery follows GitHub account settings.
+- Add a standard-library Python integration example, regression coverage, and regenerated RapidAPI specifications and reference documentation.
+
 ## 2.3.0 — 2026-10-12
 
 - Accept canonical and source aliases for all 30 teams, preserving v1 source keys in all-team responses.

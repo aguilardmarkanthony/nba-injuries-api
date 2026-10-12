@@ -121,7 +121,7 @@ def test_unavailable_feed_returns_503_and_retry_header(client, monkeypatch):
 
 def test_health_does_not_expose_auth_configuration(client):
     data = client.get("/v1/health").json()
-    assert data == {"status": "ok", "version": "2.3.0", "cacheTtlSeconds": 120}
+    assert data == {"status": "ok", "version": "2.4.0", "cacheTtlSeconds": 120}
 
 
 def test_openapi_documents_filters_and_response_models(client):

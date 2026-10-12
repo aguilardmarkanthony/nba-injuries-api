@@ -42,13 +42,17 @@ def documents():
     for path in spec["paths"].values():
         for operation in path.values():
             operation.pop("security", None)
-    team_parameter = spec["paths"]["/v1/injuries"]["get"]["parameters"][0]
-    team_parameter["example"] = "GSW"
+    for parameter in spec["paths"]["/v1/injuries"]["get"]["parameters"]:
+        # Do not prefill both mutually exclusive filters in API playgrounds.
+        if parameter["name"] == "team":
+            parameter["example"] = "GSW"
     spec["paths"]["/v1/player/search"]["get"]["parameters"][0]["example"] = "James"
+    spec["paths"]["/v1/player/{player_id}"]["get"]["parameters"][0]["example"] = "1966"
     injury = {
         "player": "Example Player",
         "playerId": "123",
         "status": "OUT",
+        "statusCode": "OUT",
         "reason": "Ankle",
         "returnDate": None,
     }
@@ -69,6 +73,22 @@ def documents():
     }
     for path in spec["paths"].values():
         for operation in path.values():
+            if operation["operationId"] == "checkFreshness":
+                for code in ("200", "503"):
+                    operation["responses"][code]["content"]["application/json"]["example"] = {
+                        "status": "fresh" if code == "200" else "stale",
+                        "version": spec["info"]["version"],
+                        "source": "ESPN",
+                        "updatedAt": meta["updatedAt"],
+                        "cache": {
+                            **meta["cache"],
+                            "ageSeconds": 12 if code == "200" else 300,
+                            "stale": code == "503",
+                        },
+                        "alertAfterSeconds": 300,
+                        "consecutiveRefreshFailures": 0,
+                    }
+                continue
             for code, response in operation["responses"].items():
                 if code in {"400", "401", "422", "503"}:
                     examples = {

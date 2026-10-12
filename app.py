@@ -4,18 +4,20 @@ import hmac
 import os
 import time
 from contextlib import asynccontextmanager
+from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from injury_cache import CacheUnavailable, InjuryCache
 from injury_feed import build_injury_map, load_data
+from injury_status import STATUS_CODES, StatusCode, parse_status, status_code
 from teams import CANONICAL_TO_SOURCE, TEAM_NAMES, canonical_team, directory
 
-VERSION = "2.3.0"
+VERSION = "2.4.0"
 CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL", "120"))
 MAX_CACHE_AGE_SECONDS = int(os.environ.get("MAX_CACHE_AGE", "900"))
 RAPIDAPI_PROXY_SECRET = os.environ.get("RAPIDAPI_PROXY_SECRET", "").strip()
@@ -41,6 +43,11 @@ def load_snapshot() -> dict:
 
 
 cache = InjuryCache(load_snapshot, ttl=CACHE_TTL_SECONDS, max_age=MAX_CACHE_AGE_SECONDS)
+FRESHNESS_ALERT_SECONDS = int(
+    os.environ.get("FRESHNESS_ALERT_SECONDS", str(min(cache.max_age, max(cache.ttl, 300))))
+)
+if not cache.ttl <= FRESHNESS_ALERT_SECONDS <= cache.max_age:
+    raise ValueError("FRESHNESS_ALERT_SECONDS must be between CACHE_TTL and MAX_CACHE_AGE")
 
 
 @asynccontextmanager
@@ -56,7 +63,7 @@ app = FastAPI(
     title="NBA Injuries API",
     version=VERSION,
     lifespan=lifespan,
-    description="Current ESPN-sourced NBA injury snapshots, team lookup, and player search. "
+    description="Current ESPN-sourced NBA injury snapshots with team/status filters, player lookup, and freshness checks. "
     "Responses include cache age and stale-data indicators. Return dates are source estimates.",
 )
 
@@ -73,6 +80,13 @@ class Injury(BaseModel):
     playerId: str | None = Field(
         default=None, description="ESPN athlete identifier, when supplied by the source."
     )
+
+    @computed_field(
+        description="Stable filter code derived from status; unrecognized source text maps to UNKNOWN."
+    )
+    @property
+    def statusCode(self) -> StatusCode:
+        return status_code(self.status)
 
 
 class CacheMetadata(BaseModel):
@@ -93,7 +107,7 @@ class SnapshotMetadata(BaseModel):
 class AllInjuries(SnapshotMetadata):
     teams: dict[str, list[Injury]]
     teamCount: int = Field(
-        description="Number of teams represented by injury entries in this snapshot; may be less than 30."
+        description="Number of teams represented by returned injury entries; reflects applied filters and may be less than 30."
     )
     playerEntryCount: int
 
@@ -133,10 +147,17 @@ class SearchResponse(SnapshotMetadata):
     results: list[SearchInjury]
 
 
+class PlayerResponse(SnapshotMetadata):
+    playerId: str
+    count: int
+    results: list[SearchInjury]
+
+
 class ErrorDetails(BaseModel):
     code: str
     message: str
     validTeams: list[str] | None = None
+    validStatuses: list[str] | None = None
     details: list[dict] | None = None
 
 
@@ -150,10 +171,20 @@ class HealthResponse(BaseModel):
     cacheTtlSeconds: int
 
 
+class FreshnessResponse(BaseModel):
+    status: Literal["fresh", "delayed", "stale", "degraded", "unavailable"]
+    version: str
+    source: str
+    updatedAt: int | None
+    cache: CacheMetadata | None
+    alertAfterSeconds: int
+    consecutiveRefreshFailures: int
+
+
 ERROR_RESPONSES = {
     code: {"model": ErrorResponse, "description": description}
     for code, description in {
-        400: "Invalid team or search value",
+        400: "Invalid team, status, filter combination, or search value",
         401: "Authentication is missing or invalid",
         422: "Request parameter validation failed",
         503: "No sufficiently recent source snapshot is available",
@@ -245,6 +276,44 @@ def health():
     return {"status": "ok", "version": VERSION, "cacheTtlSeconds": CACHE_TTL_SECONDS}
 
 
+@app.get(
+    "/v1/freshness",
+    response_model=FreshnessResponse,
+    summary="Check Snapshot Freshness",
+    operation_id="checkFreshness",
+    tags=["Service"],
+    responses={
+        503: {
+            "model": FreshnessResponse,
+            "description": "Snapshot missing, too old, or repeatedly failing to refresh",
+        }
+    },
+)
+def freshness(response: Response):
+    """Observe background refresh health without fetching. HTTP 503 uses the same diagnostic schema as HTTP 200."""
+    observed = cache.inspect()
+    info = observed["cache"]
+    if info is None:
+        state = "unavailable"
+    elif info["ageSeconds"] >= FRESHNESS_ALERT_SECONDS:
+        state = "stale"
+    elif observed["consecutiveRefreshFailures"] >= 3:
+        state = "degraded"
+    else:
+        state = "delayed" if info["stale"] else "fresh"
+    response.headers["Cache-Control"] = "no-store"
+    if state in {"unavailable", "stale", "degraded"}:
+        response.status_code = 503
+        response.headers["Retry-After"] = str(cache.retry_seconds)
+    return {
+        "status": state,
+        "version": VERSION,
+        "source": "ESPN",
+        "alertAfterSeconds": FRESHNESS_ALERT_SECONDS,
+        **observed,
+    }
+
+
 @app.get("/v1/ready", include_in_schema=False)
 def ready():
     payload, cache_info = get_snapshot()
@@ -282,23 +351,57 @@ def injuries(
     team: str | None = Query(
         default=None,
         max_length=16,
-        description="Optional NBA abbreviation, case-insensitive. Canonical and source aliases both work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Omit for all teams.",
+        description="Optional single NBA abbreviation, case-insensitive. Canonical and source aliases work: GSW/GS, NOP/NO, NYK/NY, SAS/SA, UTA/UTAH, WAS/WSH. Cannot combine with teams.",
+    ),
+    status: str | None = Query(
+        default=None,
+        max_length=64,
+        description="Optional status code or readable alias, case-insensitive: OUT, GTD, OFS, QUESTIONABLE, DOUBTFUL, PROBABLE, DAY_TO_DAY, UNKNOWN. GTD and QUESTIONABLE are distinct. Omit for every status.",
+    ),
+    teams: str | None = Query(
+        default=None,
+        max_length=256,
+        description="Optional comma-separated list of up to 30 team abbreviations, e.g. GSW,NOP. Aliases are deduplicated. Returns the all-team envelope with matching source keys. Cannot combine with team.",
     ),
 ):
-    canonical = None
-    if team is not None:
+    if team is not None and teams is not None:
+        fail(400, "INVALID_FILTER", "Use either team or teams, not both.")
+    selected_status = None
+    if status is not None:
         try:
-            canonical = canonical_team(team)
+            selected_status = parse_status(status)
+        except ValueError:
+            fail(
+                400,
+                "INVALID_STATUS",
+                "Unsupported injury status. See validStatuses.",
+                validStatuses=STATUS_CODES,
+            )
+    canonical = None
+    selected_teams = None
+    if team is not None or teams is not None:
+        try:
+            if team is not None:
+                canonical = canonical_team(team)
+            else:
+                values = teams.split(",")
+                if len(values) > 30:
+                    raise ValueError("Too many teams")
+                selected_teams = {CANONICAL_TO_SOURCE[canonical_team(value)] for value in values}
         except ValueError:
             fail(
                 400,
                 "INVALID_TEAM",
-                "Unknown NBA team abbreviation. See /v1/teams for supported aliases.",
+                "Use valid NBA abbreviations; teams accepts 1-30 comma-separated values without empty items. See /v1/teams.",
                 validTeams=sorted(TEAM_NAMES),
             )
     payload, cache_info = get_snapshot()
+
+    def matches(row):
+        return selected_status is None or status_code(row["status"]) == selected_status
+
     if canonical is not None:
-        rows = payload["teams"].get(CANONICAL_TO_SOURCE[canonical], [])
+        rows = [row for row in payload["teams"].get(CANONICAL_TO_SOURCE[canonical], []) if matches(row)]
         return {
             "team": team.strip().upper(),
             "canonicalTeam": canonical,
@@ -306,7 +409,20 @@ def injuries(
             "injuries": rows,
             **metadata(payload, cache_info),
         }
-    return {**payload, "cache": cache_info}
+    if selected_status is None and selected_teams is None:
+        return {**payload, "cache": cache_info}
+    filtered = {
+        source: matching
+        for source, rows in payload["teams"].items()
+        if selected_teams is None or source in selected_teams
+        if (matching := [row for row in rows if matches(row)])
+    }
+    return {
+        **metadata(payload, cache_info),
+        "teams": filtered,
+        "teamCount": len(filtered),
+        "playerEntryCount": sum(map(len, filtered.values())),
+    }
 
 
 @app.get(
@@ -337,3 +453,32 @@ def player_search(
         if query.casefold() in injury["player"].casefold()
     ]
     return {"query": query, "count": len(results), "results": results, **metadata(payload, cache_info)}
+
+
+@app.get(
+    "/v1/player/{player_id}",
+    response_model=PlayerResponse,
+    dependencies=[Depends(require_key)],
+    summary="Find Injuries by Player ID",
+    operation_id="getPlayerInjuries",
+    tags=["Players"],
+    responses={code: response for code, response in ERROR_RESPONSES.items() if code != 400},
+)
+def player_lookup(
+    player_id: str = Path(
+        ...,
+        min_length=1,
+        max_length=12,
+        pattern=r"^[1-9][0-9]*$",
+        description="Positive ESPN athlete ID, 1-12 ASCII digits with no leading zero. Searches current injury entries only.",
+    ),
+):
+    """An empty 200 means no matching injury entry, not that the player exists or is healthy."""
+    payload, cache_info = get_snapshot()
+    results = [
+        {"team": team, "canonicalTeam": canonical_team(team), **injury}
+        for team, rows in payload["teams"].items()
+        for injury in rows
+        if injury.get("playerId") == player_id
+    ]
+    return {"playerId": player_id, "count": len(results), "results": results, **metadata(payload, cache_info)}
