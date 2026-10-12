@@ -18,6 +18,8 @@ Current NBA injury snapshots sourced from ESPN, with team/status filters, a comp
 
 Subscribe through RapidAPI and provide both gateway headers. Keep the key on your server or in an environment variable.
 
+The current BASIC plan is free and includes 5 requests per month with a hard limit. Existing subscribers keep their previous plan until they change plans. See [plan settings and verification](docs/PRICING.md).
+
 ```sh
 curl 'https://nba-injuries-api.p.rapidapi.com/v1/injuries?team=GSW' \
   -H "X-RapidAPI-Key: $RAPIDAPI_KEY" \

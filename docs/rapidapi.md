@@ -6,6 +6,8 @@ Retrieve current ESPN-sourced NBA injury reports, filter by team and status, dis
 
 Subscribe to a plan and send `X-RapidAPI-Key` and `X-RapidAPI-Host` with every gateway request. No additional origin API key is required through RapidAPI.
 
+BASIC includes 5 requests/month (hard limit). Existing subscribers keep their previous plan until they change plans.
+
 ```sh
 curl 'https://nba-injuries-api.p.rapidapi.com/v1/injuries?team=GSW' \
   -H "X-RapidAPI-Key: $RAPIDAPI_KEY" \

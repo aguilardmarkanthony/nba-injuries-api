@@ -1,5 +1,11 @@
 # Changelog
 
+## Marketplace configuration — 2026-10-12
+
+- Reduce the public BASIC plan from 30 to 5 requests per month at the owner's request, retaining the monthly hard limit and $0 subscription price.
+- Existing subscribers retain their previous RapidAPI plan until they change plans. PRO remains $9.99/month with 500,000 requests/month.
+- Update consumer documentation and record the verified provider settings in `docs/PRICING.md`. This is a marketplace configuration change; backend version remains 2.4.0.
+
 ## 2.4.0 — 2026-10-12
 
 - Add optional status and comma-separated multi-team filters, with alias deduplication, validation, matching-result counts, and preserved v1 response envelopes.
