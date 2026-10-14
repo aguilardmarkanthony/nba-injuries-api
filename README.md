@@ -96,3 +96,9 @@ Set the Render health-check path to `/v1/health`. Monitor `/v1/ready` and freshn
 The `Production freshness` workflow checks `/v1/freshness` on a 30-minute schedule and can be run manually after deployment. It fails when the snapshot is missing, exceeds its age threshold, or has three consecutive refresh failures. GitHub alert delivery follows the account's Actions notification settings. See [monitoring operations](docs/MONITORING.md) for retry behavior, notification setup, and schedule limitations.
 
 The previously tracked `payload.json` billing sample is excluded from the current repository tree. Historical commits may still contain it; no history rewrite was performed.
+
+## RapidAPI tutorials
+
+- [Build an NBA team injury widget with status and freshness checks](https://rapidapi.com/aguilardmarkanthony/api/nba-injuries-api/tutorials/build-an-nba-team-injury-widget-with-status-and-freshness-checks) - [versioned source](docs/tutorials/getting-started.md) and [runnable Node.js example](docs/tutorials/quickstart.mjs).
+
+Tutorials were published and read back without signing in on October 14, 2026. Examples explain credentials, results, limitations and errors. See each tutorial directory's publication.json for verification.

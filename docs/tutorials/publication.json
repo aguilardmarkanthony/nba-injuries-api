@@ -1,0 +1,37 @@
+{
+  "id": "nba",
+  "title": "Build an NBA team injury widget with status and freshness checks",
+  "url": "https://rapidapi.com/aguilardmarkanthony/api/nba-injuries-api/tutorials/build-an-nba-team-injury-widget-with-status-and-freshness-checks",
+  "verifiedAt": "2026-10-14T06:12:02.642Z",
+  "sourceSha256": "f764073c619aab75297a86089e61d3bd12c8adf3b3667c0774e75e78f3c6098b",
+  "savedEditorExact": true,
+  "publishedSwitch": true,
+  "publicReadback": true,
+  "publicCodeExact": true,
+  "reviewedOn": "2026-10-14",
+  "tutorialSource": "getting-started.md",
+  "runnableExample": "quickstart.mjs",
+  "gatewayVerification": {
+    "id": "nba",
+    "checkedAt": "2026-10-14T06:02:20.941Z",
+    "syntax": true,
+    "embeddedSnippetMatches": true,
+    "status": 200,
+    "success": true,
+    "checks": [
+      "injuries",
+      "canonicalTeam"
+    ]
+  },
+  "exampleReview": {
+    "id": "nba",
+    "syntax": true,
+    "embeddedSnippetMatches": true,
+    "missingKeyBeforeNetwork": true,
+    "nullError": true,
+    "nonJsonError": true,
+    "quotaError": true
+  },
+  "scope": "Tutorial and example only; backend, endpoint definitions, billing and visibility unchanged.",
+  "liveTradeExecuted": false
+}
